@@ -60,16 +60,16 @@ func newInstall(config *helmaction.Configuration, obj *helmv2.HelmRelease, opts 
 
 	install.ReleaseName = obj.GetReleaseName()
 	install.Namespace = obj.GetReleaseNamespace()
-	install.Timeout = obj.Spec.GetInstall().GetTimeout(obj.GetTimeout()).Duration
-	install.Wait = !obj.Spec.GetInstall().DisableWait
-	install.WaitForJobs = !obj.Spec.GetInstall().DisableWaitForJobs
-	install.DisableHooks = obj.Spec.GetInstall().DisableHooks
-	install.DisableOpenAPIValidation = obj.Spec.GetInstall().DisableOpenAPIValidation
-	install.Replace = obj.Spec.GetInstall().Replace
+	install.Timeout = obj.GetInstall().GetTimeout(obj.GetTimeout()).Duration
+	install.Wait = !obj.GetInstall().DisableWait
+	install.WaitForJobs = !obj.GetInstall().DisableWaitForJobs
+	install.DisableHooks = obj.GetInstall().DisableHooks
+	install.DisableOpenAPIValidation = obj.GetInstall().DisableOpenAPIValidation
+	install.Replace = obj.GetInstall().Replace
 	install.Devel = true
 
 	if obj.Spec.TargetNamespace != "" {
-		install.CreateNamespace = obj.Spec.GetInstall().CreateNamespace
+		install.CreateNamespace = obj.GetInstall().CreateNamespace
 	}
 
 	install.PostRenderer = postrender.BuildPostRenderers(obj)
@@ -82,7 +82,7 @@ func newInstall(config *helmaction.Configuration, obj *helmv2.HelmRelease, opts 
 }
 
 func installCRDs(config *helmaction.Configuration, obj *helmv2.HelmRelease, chrt *helmchart.Chart, install *helmaction.Install) error {
-	policy, err := crdPolicyOrDefault(obj.Spec.GetInstall().CRDs)
+	policy, err := crdPolicyOrDefault(obj.GetInstall().CRDs)
 	if err != nil {
 		return err
 	}

@@ -59,15 +59,15 @@ func newUpgrade(config *helmaction.Configuration, obj *helmv2.HelmRelease, opts 
 	upgrade := helmaction.NewUpgrade(config)
 
 	upgrade.Namespace = obj.GetReleaseNamespace()
-	upgrade.ResetValues = !obj.Spec.GetUpgrade().PreserveValues
-	upgrade.ReuseValues = obj.Spec.GetUpgrade().PreserveValues
+	upgrade.ResetValues = !obj.GetUpgrade().PreserveValues
+	upgrade.ReuseValues = obj.GetUpgrade().PreserveValues
 	upgrade.MaxHistory = obj.GetMaxHistory()
-	upgrade.Timeout = obj.Spec.GetUpgrade().GetTimeout(obj.GetTimeout()).Duration
-	upgrade.Wait = !obj.Spec.GetUpgrade().DisableWait
-	upgrade.WaitForJobs = !obj.Spec.GetUpgrade().DisableWaitForJobs
-	upgrade.DisableHooks = obj.Spec.GetUpgrade().DisableHooks
-	upgrade.Force = obj.Spec.GetUpgrade().Force
-	upgrade.CleanupOnFail = obj.Spec.GetUpgrade().CleanupOnFail
+	upgrade.Timeout = obj.GetUpgrade().GetTimeout(obj.GetTimeout()).Duration
+	upgrade.Wait = !obj.GetUpgrade().DisableWait
+	upgrade.WaitForJobs = !obj.GetUpgrade().DisableWaitForJobs
+	upgrade.DisableHooks = obj.GetUpgrade().DisableHooks
+	upgrade.Force = obj.GetUpgrade().Force
+	upgrade.CleanupOnFail = obj.GetUpgrade().CleanupOnFail
 	upgrade.Devel = true
 
 	upgrade.PostRenderer = postrender.BuildPostRenderers(obj)
@@ -80,7 +80,7 @@ func newUpgrade(config *helmaction.Configuration, obj *helmv2.HelmRelease, opts 
 }
 
 func upgradeCRDs(config *helmaction.Configuration, obj *helmv2.HelmRelease, chrt *helmchart.Chart) error {
-	policy, err := crdPolicyOrDefault(obj.Spec.GetUpgrade().CRDs)
+	policy, err := crdPolicyOrDefault(obj.GetUpgrade().CRDs)
 	if err != nil {
 		return err
 	}
