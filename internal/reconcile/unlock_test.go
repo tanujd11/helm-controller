@@ -29,7 +29,9 @@ import (
 	helmstorage "helm.sh/helm/v3/pkg/storage"
 	helmdriver "helm.sh/helm/v3/pkg/storage/driver"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/tools/record"
 
+	"github.com/fluxcd/pkg/apis/meta"
 	"github.com/fluxcd/pkg/runtime/conditions"
 
 	helmv2 "github.com/fluxcd/helm-controller/api/v2beta2"
@@ -39,7 +41,7 @@ import (
 	"github.com/fluxcd/helm-controller/internal/testutil"
 )
 
-func Test_unlock(t *testing.T) {
+func TestUnlock_Reconcile(t *testing.T) {
 	var (
 		mockQueryErr  = errors.New("storage query error")
 		mockUpdateErr = errors.New("storage update error")
@@ -95,8 +97,8 @@ func Test_unlock(t *testing.T) {
 				}
 			},
 			expectConditions: []metav1.Condition{
-				*conditions.FalseCondition(helmv2.ReleasedCondition, "StalePending",
-					"Release unlocked from stale '%s' state", helmrelease.StatusPendingInstall),
+				*conditions.FalseCondition(meta.ReadyCondition, "PendingRelease", "Unlocked release"),
+				*conditions.FalseCondition(helmv2.ReleasedCondition, "PendingRelease", "Unlocked release"),
 			},
 			expectCurrent: func(releases []*helmrelease.Release) *helmv2.HelmReleaseInfo {
 				return release.ObservedToInfo(release.ObserveRelease(releases[0]))
@@ -128,8 +130,8 @@ func Test_unlock(t *testing.T) {
 			},
 			wantErr: mockUpdateErr,
 			expectConditions: []metav1.Condition{
-				*conditions.FalseCondition(helmv2.ReleasedCondition, "StalePending",
-					"Failed to unlock release from stale '%s' state", helmrelease.StatusPendingRollback),
+				*conditions.FalseCondition(meta.ReadyCondition, "PendingRelease", "Unlock of release"),
+				*conditions.FalseCondition(helmv2.ReleasedCondition, "PendingRelease", "Unlock of release"),
 			},
 			expectCurrent: func(releases []*helmrelease.Release) *helmv2.HelmReleaseInfo {
 				return release.ObservedToInfo(release.ObserveRelease(releases[0]))
@@ -233,8 +235,8 @@ func Test_unlock(t *testing.T) {
 			name: "unlock with storage query error",
 			driver: func(driver helmdriver.Driver) helmdriver.Driver {
 				return &storage.Failing{
-					Driver:   driver,
-					QueryErr: mockQueryErr,
+					Driver: driver,
+					GetErr: mockQueryErr,
 				}
 			},
 			releases: func(namespace string) []*helmrelease.Release {
@@ -318,7 +320,8 @@ func Test_unlock(t *testing.T) {
 				cfg.Driver = tt.driver(cfg.Driver)
 			}
 
-			got := (&Unlock{configFactory: cfg}).Reconcile(context.TODO(), &Request{
+			recorder := record.NewFakeRecorder(10)
+			got := NewUnlock(cfg, recorder).Reconcile(context.TODO(), &Request{
 				Object: obj,
 			})
 			if tt.wantErr != nil {
@@ -333,15 +336,15 @@ func Test_unlock(t *testing.T) {
 			helmreleaseutil.SortByRevision(releases)
 
 			if tt.expectCurrent != nil {
-				g.Expect(obj.Status.Current).To(testutil.Equal(tt.expectCurrent(releases)))
+				g.Expect(obj.GetCurrent()).To(testutil.Equal(tt.expectCurrent(releases)))
 			} else {
-				g.Expect(obj.Status.Current).To(BeNil(), "expected current to be nil")
+				g.Expect(obj.GetCurrent()).To(BeNil(), "expected current to be nil")
 			}
 
 			if tt.expectPrevious != nil {
-				g.Expect(obj.Status.Previous).To(testutil.Equal(tt.expectPrevious(releases)))
+				g.Expect(obj.GetPrevious()).To(testutil.Equal(tt.expectPrevious(releases)))
 			} else {
-				g.Expect(obj.Status.Previous).To(BeNil(), "expected previous to be nil")
+				g.Expect(obj.GetPrevious()).To(BeNil(), "expected previous to be nil")
 			}
 
 			g.Expect(obj.Status.Failures).To(Equal(tt.expectFailures))
@@ -374,8 +377,8 @@ func Test_observeUnlock(t *testing.T) {
 		expect := release.ObservedToInfo(release.ObserveRelease(rls))
 		observeUnlock(obj)(rls)
 
-		g.Expect(obj.Status.Previous).To(BeNil())
-		g.Expect(obj.Status.Current).To(Equal(expect))
+		g.Expect(obj.GetPrevious()).To(BeNil())
+		g.Expect(obj.GetCurrent()).To(Equal(expect))
 	})
 
 	t.Run("unlock without current", func(t *testing.T) {
@@ -390,7 +393,7 @@ func Test_observeUnlock(t *testing.T) {
 		})
 		observeUnlock(obj)(rls)
 
-		g.Expect(obj.Status.Previous).To(BeNil())
-		g.Expect(obj.Status.Current).To(BeNil())
+		g.Expect(obj.GetPrevious()).To(BeNil())
+		g.Expect(obj.GetCurrent()).To(BeNil())
 	})
 }

@@ -51,7 +51,7 @@ func Test_newRollback(t *testing.T) {
 		g.Expect(got.Force).To(Equal(obj.Spec.Rollback.Force))
 	})
 
-	t.Run("rollback with previous", func(t *testing.T) {
+	t.Run("rollback to version", func(t *testing.T) {
 		g := NewWithT(t)
 
 		obj := &helmv2.HelmRelease{
@@ -59,40 +59,11 @@ func Test_newRollback(t *testing.T) {
 				Name:      "rollback",
 				Namespace: "rollback-ns",
 			},
-			Status: helmv2.HelmReleaseStatus{
-				Previous: &helmv2.HelmReleaseInfo{
-					Name:      "rollback",
-					Namespace: "rollback-ns",
-					Version:   3,
-				},
-			},
 		}
 
-		got := newRollback(&helmaction.Configuration{}, obj, nil)
+		got := newRollback(&helmaction.Configuration{}, obj, []RollbackOption{RollbackToVersion(3)})
 		g.Expect(got).ToNot(BeNil())
-		g.Expect(got.Version).To(Equal(obj.Status.Previous.Version))
-	})
-
-	t.Run("rollback with stale previous", func(t *testing.T) {
-		g := NewWithT(t)
-
-		obj := &helmv2.HelmRelease{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "rollback",
-				Namespace: "rollback-ns",
-			},
-			Status: helmv2.HelmReleaseStatus{
-				Previous: &helmv2.HelmReleaseInfo{
-					Name:      "rollback",
-					Namespace: "other-ns",
-					Version:   3,
-				},
-			},
-		}
-
-		got := newRollback(&helmaction.Configuration{}, obj, nil)
-		g.Expect(got).ToNot(BeNil())
-		g.Expect(got.Version).To(BeZero())
+		g.Expect(got.Version).To(Equal(3))
 	})
 
 	t.Run("timeout fallback", func(t *testing.T) {
