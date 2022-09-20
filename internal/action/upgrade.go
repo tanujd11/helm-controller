@@ -87,7 +87,7 @@ func upgradeCRDs(config *helmaction.Configuration, obj *helmv2.HelmRelease, chrt
 	if policy != helmv2.Skip {
 		crds := chrt.CRDObjects()
 		if len(crds) > 0 {
-			if err := applyCRDs(config, policy, chrt); err != nil {
+			if err = applyCRDs(config, policy, chrt, setOriginVisitor(helmv2.GroupVersion.Group, obj.Namespace, obj.Name)); err != nil {
 				return err
 			}
 		}

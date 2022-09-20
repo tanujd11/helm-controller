@@ -29,6 +29,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	apiruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/cli-runtime/pkg/resource"
 
@@ -39,6 +40,8 @@ const (
 	// DefaultCRDPolicy is the default CRD policy.
 	DefaultCRDPolicy = helmv2.Create
 )
+
+var accessor = apimeta.NewAccessor()
 
 // crdPolicy returns the CRD policy for the given CRD.
 func crdPolicyOrDefault(policy helmv2.CRDsPolicy) (helmv2.CRDsPolicy, error) {
@@ -65,7 +68,7 @@ func (*rootScoped) Name() apimeta.RESTScopeName {
 	return apimeta.RESTScopeNameRoot
 }
 
-func applyCRDs(cfg *helmaction.Configuration, policy helmv2.CRDsPolicy, chrt *helmchart.Chart) error {
+func applyCRDs(cfg *helmaction.Configuration, policy helmv2.CRDsPolicy, chrt *helmchart.Chart, visitorFunc ...resource.VisitorFunc) error {
 	cfg.Log("apply CRDs with policy %s", policy)
 
 	// Collect all CRDs from all files in `crds` directory.
@@ -79,6 +82,14 @@ func applyCRDs(cfg *helmaction.Configuration, policy helmv2.CRDsPolicy, chrt *he
 		}
 		allCRDs = append(allCRDs, res...)
 	}
+
+	// Visit CRDs with any provided visitor functions.
+	for _, visitor := range visitorFunc {
+		if err := allCRDs.Visit(visitor); err != nil {
+			return err
+		}
+	}
+
 	var totalItems []*resource.Info
 	switch policy {
 	case helmv2.Skip:
@@ -184,4 +195,53 @@ func applyCRDs(cfg *helmaction.Configuration, policy helmv2.CRDsPolicy, chrt *he
 		discoveryClient.ServerGroups()
 	}
 	return nil
+}
+
+func setOriginVisitor(group, namespace, name string) resource.VisitorFunc {
+	return func(info *resource.Info, err error) error {
+		if err != nil {
+			return err
+		}
+		if err = mergeLabels(info.Object, originLabels(group, namespace, name)); err != nil {
+			return fmt.Errorf(
+				"%s origin labels could not be updated: %s",
+				resourceString(info), err,
+			)
+		}
+		return nil
+	}
+}
+
+func originLabels(group, namespace, name string) map[string]string {
+	return map[string]string{
+		fmt.Sprintf("%s/name", group):      name,
+		fmt.Sprintf("%s/namespace", group): namespace,
+	}
+}
+
+func mergeLabels(obj apiruntime.Object, labels map[string]string) error {
+	current, err := accessor.Labels(obj)
+	if err != nil {
+		return err
+	}
+	return accessor.SetLabels(obj, mergeStrStrMaps(current, labels))
+}
+
+func resourceString(info *resource.Info) string {
+	_, k := info.Mapping.GroupVersionKind.ToAPIVersionAndKind()
+	return fmt.Sprintf(
+		"%s %q in namespace %q",
+		k, info.Name, info.Namespace,
+	)
+}
+
+func mergeStrStrMaps(current, desired map[string]string) map[string]string {
+	result := make(map[string]string)
+	for k, v := range current {
+		result[k] = v
+	}
+	for k, desiredVal := range desired {
+		result[k] = desiredVal
+	}
+	return result
 }
