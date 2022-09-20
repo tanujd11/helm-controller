@@ -889,10 +889,13 @@ spec:
                       chart:
                         description: The name or path the Helm chart is available
                           at in the SourceRef.
+                        maxLength: 2048
+                        minLength: 1
                         type: string
                       interval:
                         description: Interval at which to check the v1beta2.Source
                           for updates. Defaults to 'HelmReleaseSpec.Interval'.
+                        pattern: ^([0-9]+(\.[0-9]+)?(ms|s|m))+$
                         type: string
                       reconcileStrategy:
                         default: ChartVersion
@@ -1060,10 +1063,12 @@ spec:
                     description: Timeout is the time to wait for any individual Kubernetes
                       operation (like Jobs for hooks) during the performance of a
                       Helm install action. Defaults to 'HelmReleaseSpec.Timeout'.
+                    pattern: ^([0-9]+(\.[0-9]+)?(ms|s|m))+$
                     type: string
                 type: object
               interval:
                 description: Interval at which to reconcile the Helm release.
+                pattern: ^([0-9]+(\.[0-9]+)?(ms|s|m|h))+$
                 type: string
               kubeConfig:
                 description: KubeConfig for reconciling the HelmRelease on a remote
@@ -1335,11 +1340,14 @@ spec:
                     description: Timeout is the time to wait for any individual Kubernetes
                       operation (like Jobs for hooks) during the performance of a
                       Helm rollback action. Defaults to 'HelmReleaseSpec.Timeout'.
+                    pattern: ^([0-9]+(\.[0-9]+)?(ms|s|m))+$
                     type: string
                 type: object
               serviceAccountName:
                 description: The name of the Kubernetes service account to impersonate
                   when reconciling this HelmRelease.
+                maxLength: 253
+                minLength: 1
                 type: string
               storageNamespace:
                 description: StorageNamespace used for the Helm storage. Defaults
@@ -1379,6 +1387,8 @@ spec:
                           type: boolean
                         name:
                           description: Name is the name of the test.
+                          maxLength: 253
+                          minLength: 1
                           type: string
                       required:
                       - name
@@ -1394,12 +1404,14 @@ spec:
                     description: Timeout is the time to wait for any individual Kubernetes
                       operation during the performance of a Helm test action. Defaults
                       to 'HelmReleaseSpec.Timeout'.
+                    pattern: ^([0-9]+(\.[0-9]+)?(ms|s|m))+$
                     type: string
                 type: object
               timeout:
                 description: Timeout is the time to wait for any individual Kubernetes
                   operation (like Jobs for hooks) during the performance of a Helm
                   action. Defaults to '5m0s'.
+                pattern: ^([0-9]+(\.[0-9]+)?(ms|s|m))+$
                 type: string
               uninstall:
                 description: Uninstall holds the configuration for Helm uninstall
@@ -1421,6 +1433,7 @@ spec:
                     description: Timeout is the time to wait for any individual Kubernetes
                       operation (like Jobs for hooks) during the performance of a
                       Helm uninstall action. Defaults to 'HelmReleaseSpec.Timeout'.
+                    pattern: ^([0-9]+(\.[0-9]+)?(ms|s|m))+$
                     type: string
                 type: object
               upgrade:
@@ -1507,6 +1520,7 @@ spec:
                     description: Timeout is the time to wait for any individual Kubernetes
                       operation (like Jobs for hooks) during the performance of a
                       Helm upgrade action. Defaults to 'HelmReleaseSpec.Timeout'.
+                    pattern: ^([0-9]+(\.[0-9]+)?(ms|s|m))+$
                     type: string
                 type: object
               values:
@@ -1827,6 +1841,8 @@ spec:
               storageNamespace:
                 description: StorageNamespace is the namespace of the Helm release
                   storage for the Current release.
+                maxLength: 63
+                minLength: 1
                 type: string
               upgradeFailures:
                 description: UpgradeFailures is the upgrade failure count against
