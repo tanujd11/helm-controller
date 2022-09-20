@@ -18,6 +18,7 @@ package action
 
 import (
 	"context"
+	"github.com/fluxcd/helm-controller/internal/release"
 
 	helmaction "helm.sh/helm/v3/pkg/action"
 	helmchart "helm.sh/helm/v3/pkg/chart"
@@ -52,12 +53,11 @@ func Upgrade(ctx context.Context, config *helmaction.Configuration, obj *helmv2.
 		return nil, err
 	}
 
-	return upgrade.RunWithContext(ctx, obj.GetReleaseName(), chrt, vals.AsMap())
+	return upgrade.RunWithContext(ctx, release.ShortenName(obj.GetReleaseName()), chrt, vals.AsMap())
 }
 
 func newUpgrade(config *helmaction.Configuration, obj *helmv2.HelmRelease, opts []UpgradeOption) *helmaction.Upgrade {
 	upgrade := helmaction.NewUpgrade(config)
-
 	upgrade.Namespace = obj.GetReleaseNamespace()
 	upgrade.ResetValues = !obj.GetUpgrade().PreserveValues
 	upgrade.ReuseValues = obj.GetUpgrade().PreserveValues
@@ -69,7 +69,6 @@ func newUpgrade(config *helmaction.Configuration, obj *helmv2.HelmRelease, opts 
 	upgrade.Force = obj.GetUpgrade().Force
 	upgrade.CleanupOnFail = obj.GetUpgrade().CleanupOnFail
 	upgrade.Devel = true
-
 	upgrade.PostRenderer = postrender.BuildPostRenderers(obj)
 
 	for _, opt := range opts {

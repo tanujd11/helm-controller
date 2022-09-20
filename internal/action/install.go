@@ -18,6 +18,7 @@ package action
 
 import (
 	"context"
+	"github.com/fluxcd/helm-controller/internal/release"
 
 	helmaction "helm.sh/helm/v3/pkg/action"
 	helmchart "helm.sh/helm/v3/pkg/chart"
@@ -58,7 +59,7 @@ func Install(ctx context.Context, config *helmaction.Configuration, obj *helmv2.
 func newInstall(config *helmaction.Configuration, obj *helmv2.HelmRelease, opts []InstallOption) *helmaction.Install {
 	install := helmaction.NewInstall(config)
 
-	install.ReleaseName = obj.GetReleaseName()
+	install.ReleaseName = release.ShortenName(obj.GetReleaseName())
 	install.Namespace = obj.GetReleaseNamespace()
 	install.Timeout = obj.GetInstall().GetTimeout(obj.GetTimeout()).Duration
 	install.Wait = !obj.GetInstall().DisableWait
