@@ -17,15 +17,18 @@ limitations under the License.
 package reconcile
 
 import (
+	"testing"
+
+	"github.com/go-logr/logr"
 	. "github.com/onsi/gomega"
 	helmrelease "helm.sh/helm/v3/pkg/release"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"testing"
 
 	"github.com/fluxcd/pkg/apis/meta"
 	"github.com/fluxcd/pkg/runtime/conditions"
 
 	helmv2 "github.com/fluxcd/helm-controller/api/v2beta2"
+	"github.com/fluxcd/helm-controller/internal/action"
 	"github.com/fluxcd/helm-controller/internal/release"
 )
 
@@ -706,4 +709,12 @@ func Test_conditionallyDeleteRemediated(t *testing.T) {
 			g.Expect(conditions.Has(obj, helmv2.RemediatedCondition)).To(Equal(isRemediated))
 		})
 	}
+}
+
+func mockLogBuffer(size int, lines int) *action.LogBuffer {
+	log := action.NewLogBuffer(action.LogV(logr.Discard(), 0), size)
+	for i := 0; i < lines; i++ {
+		log.Log("line %d", i+1)
+	}
+	return log
 }

@@ -23,17 +23,18 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fluxcd/pkg/runtime/conditions"
 	"github.com/go-logr/logr"
 	. "github.com/onsi/gomega"
 	helmrelease "helm.sh/helm/v3/pkg/release"
 	"helm.sh/helm/v3/pkg/releaseutil"
 	helmstorage "helm.sh/helm/v3/pkg/storage"
 	helmdriver "helm.sh/helm/v3/pkg/storage/driver"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/record"
 
 	"github.com/fluxcd/pkg/apis/meta"
+	"github.com/fluxcd/pkg/runtime/conditions"
 
 	helmv2 "github.com/fluxcd/helm-controller/api/v2beta2"
 	"github.com/fluxcd/helm-controller/internal/action"
@@ -101,9 +102,9 @@ func TestUninstall_Reconcile(t *testing.T) {
 			},
 			expectConditions: []metav1.Condition{
 				*conditions.FalseCondition(meta.ReadyCondition, helmv2.UninstallSucceededReason,
-					"Uninstall of release"),
+					"Uninstalled release"),
 				*conditions.FalseCondition(helmv2.ReleasedCondition, helmv2.UninstallSucceededReason,
-					"Uninstall of release"),
+					"Uninstalled release"),
 			},
 			expectCurrent: func(releases []*helmrelease.Release) *helmv2.HelmReleaseInfo {
 				return release.ObservedToInfo(release.ObserveRelease(releases[0]))
@@ -338,7 +339,7 @@ func TestUninstall_Reconcile(t *testing.T) {
 				cfg.Driver = tt.driver(cfg.Driver)
 			}
 
-			recorder := record.NewFakeRecorder(10)
+			recorder := new(record.FakeRecorder)
 			got := NewUninstall(cfg, recorder).Reconcile(context.TODO(), &Request{
 				Object: obj,
 			})
@@ -370,6 +371,121 @@ func TestUninstall_Reconcile(t *testing.T) {
 			g.Expect(obj.Status.UpgradeFailures).To(Equal(tt.expectUpgradeFailures))
 		})
 	}
+}
+
+func TestUninstall_failure(t *testing.T) {
+	var (
+		cur = testutil.BuildRelease(&helmrelease.MockReleaseOptions{
+			Name:    mockReleaseName,
+			Chart:   testutil.BuildChart(),
+			Version: 4,
+		})
+		obj = &helmv2.HelmRelease{
+			Status: helmv2.HelmReleaseStatus{
+				Current: release.ObservedToInfo(release.ObserveRelease(cur)),
+			},
+		}
+		err = errors.New("uninstall error")
+	)
+
+	t.Run("records failure", func(t *testing.T) {
+		g := NewWithT(t)
+
+		recorder := testutil.NewFakeRecorder(10, false)
+		r := &Uninstall{
+			eventRecorder: recorder,
+		}
+
+		req := &Request{Object: obj.DeepCopy()}
+		r.failure(req, nil, err)
+
+		expectMsg := fmt.Sprintf(fmtUninstallFailure,
+			fmt.Sprintf("%s/%s.%d", cur.Namespace, cur.Name, cur.Version),
+			fmt.Sprintf("%s@%s", cur.Chart.Name(), cur.Chart.Metadata.Version),
+			err.Error())
+
+		g.Expect(req.Object.Status.Conditions).To(conditions.MatchConditions([]metav1.Condition{
+			*conditions.FalseCondition(helmv2.ReleasedCondition, helmv2.UninstallFailedReason, expectMsg),
+		}))
+		g.Expect(req.Object.Status.Failures).To(Equal(int64(1)))
+		g.Expect(recorder.GetEvents()).To(ConsistOf([]corev1.Event{
+			{
+				Type:    corev1.EventTypeWarning,
+				Reason:  helmv2.UninstallFailedReason,
+				Message: expectMsg,
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						"revision": cur.Chart.Metadata.Version,
+					},
+				},
+			},
+		}))
+	})
+
+	t.Run("records failure with logs", func(t *testing.T) {
+		g := NewWithT(t)
+
+		recorder := testutil.NewFakeRecorder(10, false)
+		r := &Uninstall{
+			eventRecorder: recorder,
+		}
+		req := &Request{Object: obj.DeepCopy()}
+		r.failure(req, mockLogBuffer(5, 10), err)
+
+		expectSubStr := "Last Helm logs"
+		g.Expect(conditions.IsFalse(req.Object, helmv2.ReleasedCondition)).To(BeTrue())
+		g.Expect(conditions.GetMessage(req.Object, helmv2.ReleasedCondition)).ToNot(ContainSubstring(expectSubStr))
+
+		events := recorder.GetEvents()
+		g.Expect(events).To(HaveLen(1))
+		g.Expect(events[0].Message).To(ContainSubstring(expectSubStr))
+	})
+}
+
+func TestUninstall_success(t *testing.T) {
+	g := NewWithT(t)
+
+	var cur = testutil.BuildRelease(&helmrelease.MockReleaseOptions{
+		Name:      mockReleaseName,
+		Namespace: mockReleaseNamespace,
+		Chart:     testutil.BuildChart(),
+		Version:   4,
+	})
+
+	recorder := testutil.NewFakeRecorder(10, false)
+	r := &Uninstall{
+		eventRecorder: recorder,
+	}
+
+	obj := &helmv2.HelmRelease{
+		Status: helmv2.HelmReleaseStatus{
+			Current: release.ObservedToInfo(release.ObserveRelease(cur)),
+		},
+	}
+
+	req := &Request{Object: obj}
+	r.success(req)
+
+	expectMsg := fmt.Sprintf(fmtUninstallSuccess,
+		fmt.Sprintf("%s/%s.%d", cur.Namespace, cur.Name, cur.Version),
+		fmt.Sprintf("%s@%s", cur.Chart.Name(), cur.Chart.Metadata.Version))
+
+	g.Expect(req.Object.Status.Conditions).To(conditions.MatchConditions([]metav1.Condition{
+		*conditions.FalseCondition(helmv2.ReleasedCondition, helmv2.UninstallSucceededReason, expectMsg),
+	}))
+	g.Expect(req.Object.Status.Failures).To(Equal(int64(0)))
+	g.Expect(recorder.GetEvents()).To(ConsistOf([]corev1.Event{
+		{
+			Type:    corev1.EventTypeNormal,
+			Reason:  helmv2.UninstallSucceededReason,
+			Message: expectMsg,
+			ObjectMeta: metav1.ObjectMeta{
+				Annotations: map[string]string{
+					"revision": cur.Chart.Metadata.Version,
+				},
+			},
+		},
+	}))
 }
 
 func Test_observeUninstall(t *testing.T) {

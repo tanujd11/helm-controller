@@ -19,8 +19,6 @@ package reconcile
 import (
 	"context"
 	"fmt"
-	"strings"
-
 	"github.com/fluxcd/pkg/runtime/logger"
 	helmrelease "helm.sh/helm/v3/pkg/release"
 	corev1 "k8s.io/api/core/v1"
@@ -119,6 +117,15 @@ func (r *Test) Type() ReconcilerType {
 	return ReconcilerTypeTest
 }
 
+const (
+	// fmtTestPending is the message format used when awaiting tests to be run.
+	fmtTestPending = "Release %s with chart %s is awaiting tests"
+	// fmtTestFailure is the message format for a test failure.
+	fmtTestFailure = "Test for release %s with chart %s failed: %s"
+	// fmtTestSuccess is the message format for a successful test.
+	fmtTestSuccess = "Tests for release %s with chart %s succeeded: %s"
+)
+
 // failure records the failure of a Helm test action in the status of the given
 // Request.Object by marking TestSuccess=False and increasing the failure
 // counter. In addition, it emits a warning event for the Request.Object.
@@ -127,8 +134,7 @@ func (r *Test) Type() ReconcilerType {
 func (r *Test) failure(req *Request, buffer *action.LogBuffer, err error) {
 	// Compose failure message.
 	cur := req.Object.GetCurrent()
-	msg := fmt.Sprintf("Test for release %s with chart %s failed: %s",
-		cur.FullReleaseName(), cur.VersionedChartName(), err.Error())
+	msg := fmt.Sprintf(fmtTestFailure, cur.FullReleaseName(), cur.VersionedChartName(), err.Error())
 
 	// Mark test failure on object.
 	req.Object.Status.Failures++
@@ -138,8 +144,6 @@ func (r *Test) failure(req *Request, buffer *action.LogBuffer, err error) {
 	// Condition summary.
 	r.eventRecorder.AnnotatedEventf(req.Object, eventMeta(cur.ChartVersion), corev1.EventTypeWarning, helmv2.TestFailedReason, eventMessageWithLog(msg, buffer))
 
-	// If we failed to observe anything happened at all, we want to retry
-	// and return the error to indicate this.
 	if req.Object.GetCurrent().HasBeenTested() {
 		// Count the failure of the test for the active remediation strategy if enabled.
 		remediation := req.Object.GetActiveRemediation()
@@ -154,24 +158,21 @@ func (r *Test) failure(req *Request, buffer *action.LogBuffer, err error) {
 func (r *Test) success(req *Request) {
 	// Compose success message.
 	cur := req.Object.GetCurrent()
-	msg := strings.Builder{}
-	msg.WriteString(fmt.Sprintf("Tests for release %s with chart %s succeeded", cur.FullReleaseName(), cur.VersionedChartName()))
-
+	var hookMsg = "no test hooks"
 	if l := len(cur.GetTestHooks()); l > 0 {
 		h := "hook"
 		if l > 1 {
-			h = h + "s"
+			h += "s"
 		}
-		msg.WriteString(fmt.Sprintf(": %d test %s completed successfully", l, h))
-	} else {
-		msg.WriteString(fmt.Sprintf(": no test hooks"))
+		hookMsg = fmt.Sprintf("%d test %s completed successfully", l, h)
 	}
+	msg := fmt.Sprintf(fmtTestSuccess, cur.FullReleaseName(), cur.VersionedChartName(), hookMsg)
 
 	// Mark test success on object.
-	conditions.MarkTrue(req.Object, helmv2.TestSuccessCondition, helmv2.TestSucceededReason, msg.String())
+	conditions.MarkTrue(req.Object, helmv2.TestSuccessCondition, helmv2.TestSucceededReason, msg)
 
 	// Record event.
-	r.eventRecorder.AnnotatedEventf(req.Object, eventMeta(cur.ChartVersion), corev1.EventTypeNormal, helmv2.TestSucceededReason, msg.String())
+	r.eventRecorder.AnnotatedEventf(req.Object, eventMeta(cur.ChartVersion), corev1.EventTypeNormal, helmv2.TestSucceededReason, msg)
 }
 
 // observeTest returns a storage.ObserveFunc that can be used to observe

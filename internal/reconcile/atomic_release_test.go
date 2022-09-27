@@ -147,7 +147,7 @@ func TestAtomicRelease_Reconcile(t *testing.T) {
 		g.Expect(err).ToNot(HaveOccurred())
 
 		client := fake.NewClientBuilder().WithScheme(testEnv.Scheme()).WithObjects(obj).Build()
-		recorder := record.NewFakeRecorder(10)
+		recorder := new(record.FakeRecorder)
 
 		req := &Request{
 			Object: obj,
