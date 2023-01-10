@@ -1,5 +1,5 @@
 # Image URL to use all building/pushing image targets
-IMG ?= fluxcd/helm-controller:latest
+IMG ?= 133389920361.dkr.ecr.us-east-1.amazonaws.com/helm-controller:v0.9.0-distro-1
 # Produce CRDs that work back to Kubernetes 1.16
 CRD_OPTIONS ?= crd:crdVersions=v1
 
@@ -81,8 +81,8 @@ generate: controller-gen
 	cd api; $(CONTROLLER_GEN) object:headerFile="../hack/boilerplate.go.txt" paths="./..."
 
 # Build the docker image
-docker-build: test
-	docker build . -t ${IMG}
+docker-build:
+	docker build . -t ${IMG} --platform amd64
 
 # Push the docker image
 docker-push:

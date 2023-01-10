@@ -143,8 +143,9 @@ func (k *postRendererKustomize) Run(renderedManifests *bytes.Buffer) (modifiedMa
 
 // buildKustomization wraps krusty.MakeKustomizer with the following settings:
 // - disable kyaml due to critical bugs like:
-//	 - https://github.com/kubernetes-sigs/kustomize/issues/3446
-//	 - https://github.com/kubernetes-sigs/kustomize/issues/3480
+//   - https://github.com/kubernetes-sigs/kustomize/issues/3446
+//   - https://github.com/kubernetes-sigs/kustomize/issues/3480
+//
 // - reorder the resources just before output (Namespaces and Cluster roles/role bindings first, CRDs before CRs, Webhooks last)
 // - load files from outside the kustomization.yaml root
 // - disable plugins except for the builtin ones
