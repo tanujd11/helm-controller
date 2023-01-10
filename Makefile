@@ -1,5 +1,5 @@
 # Image URL to use all building/pushing image targets
-IMG ?= 133389920361.dkr.ecr.us-east-1.amazonaws.com/helm-controller:v0.9.0-distro-1
+IMG ?= fluxcd/helm-controller:latest
 # Produce CRDs that work back to Kubernetes 1.16
 CRD_OPTIONS ?= crd:crdVersions=v1
 
